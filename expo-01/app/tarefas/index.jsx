@@ -1,95 +1,222 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Button,
+  ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from "react-native";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { adicionarTarefa, getTarefas } from "@/back4app";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  adicionarTarefa,
+  atualizarTarefa,
+  deletarTarefa,
+  getTarefas,
+} from "@/back4app";
 
 export default function TarefasPage() {
-  const queryClient = useQueryClient();
-  const { data, isFetching } = useQuery({
+  const [descricao, setDescricao] = useState("");
+  const [mensagem, setMensagem] = useState("");
+
+  const { data, isFetching, refetch } = useQuery({
     queryKey: ["tarefas"],
     queryFn: getTarefas,
   });
-  const mutation = useMutation({
+
+  const adicionarMutation = useMutation({
     mutationFn: adicionarTarefa,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["tarefas"] });
+    onSuccess: async () => {
+      setMensagem("Tarefa adicionada com sucesso.");
+      setDescricao("");
+      await refetch();
+    },
+    onError: (error) => {
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Não foi possível adicionar a tarefa.";
+      setMensagem(`Erro ao adicionar: ${msg}`);
+      console.log("Erro ao adicionar:", error?.response?.data || error.message);
     },
   });
-  const [descricao, setDescricao] = useState("");
+
+  const atualizarMutation = useMutation({
+    mutationFn: ({ objectId, dados }) => atualizarTarefa(objectId, dados),
+    onSuccess: async () => {
+      setMensagem("Tarefa atualizada com sucesso.");
+      await refetch();
+    },
+    onError: (error) => {
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Não foi possível atualizar a tarefa.";
+      setMensagem(`Erro ao atualizar: ${msg}`);
+      console.log("Erro ao atualizar:", error?.response?.data || error.message);
+    },
+  });
+
+  const deletarMutation = useMutation({
+    mutationFn: deletarTarefa,
+    onSuccess: async () => {
+      setMensagem("Tarefa deletada com sucesso.");
+      await refetch();
+    },
+    onError: (error) => {
+      const msg =
+        error?.response?.data?.error ||
+        error?.message ||
+        "Não foi possível deletar a tarefa.";
+      setMensagem(`Erro ao deletar: ${msg}`);
+      console.log("Erro ao deletar:", error?.response?.data || error.message);
+    },
+  });
 
   async function handleAdicionarTarefaPress() {
+    setMensagem("Botão clicado.");
+
     if (descricao.trim() === "") {
-      Alert.alert("Descrição inválida", "Preencha a descrição da tarefa", [
-        { text: "OK", onPress: () => {} },
-      ]);
+      setMensagem("Descrição inválida. Preencha a descrição da tarefa.");
       return;
     }
-    mutation.mutate({ descricao });
-    setDescricao("");
+
+    setMensagem("Enviando tarefa...");
+    await adicionarMutation.mutateAsync({ descricao });
   }
 
+  async function handleAlternarConcluida(tarefa) {
+    setMensagem("Atualizando tarefa...");
+    await atualizarMutation.mutateAsync({
+      objectId: tarefa.objectId,
+      dados: {
+        concluida: !tarefa.concluida,
+      },
+    });
+  }
+
+  async function handleDeletarTarefa(objectId) {
+    setMensagem("Deletando tarefa...");
+    await deletarMutation.mutateAsync(objectId);
+  }
+
+  const carregando =
+    isFetching ||
+    adicionarMutation.isPending ||
+    atualizarMutation.isPending ||
+    deletarMutation.isPending;
+
   return (
-    <View style={styles.container}>
-      {(isFetching || mutation.isPending) && <ActivityIndicator size="large" />}
+    <ScrollView contentContainerStyle={styles.container}>
+      {carregando && <ActivityIndicator size="large" />}
+
       <TextInput
         style={styles.input}
         placeholder="Descrição"
         value={descricao}
         onChangeText={setDescricao}
       />
+
       <Button
         title="Adicionar Tarefa"
         onPress={handleAdicionarTarefaPress}
-        disabled={mutation.isPending}
+        disabled={adicionarMutation.isPending}
       />
+
       <View style={styles.hr} />
+
+      {!!mensagem && <Text style={styles.mensagem}>{mensagem}</Text>}
+
       <View style={styles.tasksContainer}>
-        {data?.map((t) => (
-          <Text
-            key={t.objectId}
-            style={t.concluida && styles.strikethroughText}
-          >
-            {t.descricao}
-          </Text>
+        {data?.map((tarefa) => (
+          <View key={tarefa.objectId} style={styles.taskItem}>
+            <Text
+              style={[
+                styles.taskText,
+                tarefa.concluida && styles.strikethroughText,
+              ]}
+            >
+              {tarefa.descricao}
+            </Text>
+
+            <View style={styles.actions}>
+              <Switch
+                value={!!tarefa.concluida}
+                onValueChange={() => handleAlternarConcluida(tarefa)}
+              />
+
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => handleDeletarTarefa(tarefa.objectId)}
+              >
+                <Text style={styles.deleteButtonText}>Deletar</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         ))}
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    alignItems: "center",
     padding: 10,
+    paddingBottom: 40,
   },
   tasksContainer: {
-    paddingLeft: 15,
+    marginTop: 10,
   },
   input: {
     borderColor: "black",
     borderWidth: 1,
-    width: "90%",
-    marginBottom: 5,
+    width: "100%",
+    marginBottom: 8,
+    padding: 10,
+    borderRadius: 6,
+    backgroundColor: "#fff",
   },
   hr: {
     height: 1,
     backgroundColor: "black",
-    width: "95%",
+    width: "100%",
     marginVertical: 10,
   },
+  mensagem: {
+    marginBottom: 12,
+    fontSize: 16,
+  },
+  taskItem: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 10,
+    backgroundColor: "#f9f9f9",
+  },
+  taskText: {
+    fontSize: 16,
+    marginBottom: 8,
+  },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  deleteButton: {
+    backgroundColor: "#d9534f",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  deleteButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+  },
   strikethroughText: {
-    textDecorationLine: "line-through", // Key property for strikethrough
-    textDecorationStyle: "solid", // Optional: Style of the line
-    textDecorationColor: "red", // Optional: Color of the line (iOS only)
-    // Other styles like fontSize, fontWeight, color can also be applied
+    textDecorationLine: "line-through",
   },
 });
