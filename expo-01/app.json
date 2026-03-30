@@ -47,14 +47,15 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "9858e7ed-da74-4f2b-8fa2-f07544205e7d"
+        "projectId": "5fcce111-9fc8-4ce9-bd3d-b5b37a690661"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
+    "owner": "va_silva",
     "updates": {
-      "url": "https://u.expo.dev/9858e7ed-da74-4f2b-8fa2-f07544205e7d"
+      "url": "https://u.expo.dev/5fcce111-9fc8-4ce9-bd3d-b5b37a690661"
     }
   }
 }
